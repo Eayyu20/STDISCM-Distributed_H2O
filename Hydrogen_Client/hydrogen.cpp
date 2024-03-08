@@ -1,6 +1,7 @@
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #include <iostream>
 #include <winsock2.h>
+#include <chrono>
 #include <vector>
 #include <thread>
 #include <mutex>
@@ -8,8 +9,14 @@
 using namespace std;
 
 #pragma comment(lib, "ws2_32.lib")
-
+constexpr int BUFFER_SIZE = 1024;
 mutex mtx;
+
+void logRequest(int id, const char* action) {
+    auto now = std::chrono::system_clock::now();
+    std::time_t timestamp = std::chrono::system_clock::to_time_t(now);
+    std::cout << "(H" << id << ", " << action << ", " << std::ctime(&timestamp) << ")";
+}
 
 int main() {
     // Initialize Winsock
@@ -42,10 +49,26 @@ int main() {
 
     std::cout << "Connected to server." << std::endl;
 
+    int N;
+    std::cout << "Enter the number of hydrogen bond requests (N): ";
+    std::cin >> N;
+
+    for (int i = 1; i <= N; ++i) {
+        // Sending bond request to the server
+        std::string requestMessage = "H" + std::to_string(i) + " request";
+        send(clientSocket, requestMessage.c_str(), requestMessage.size(), 0);
+        logRequest(i, "request");
+    }
+
+    for (int i = 1; i <= N; ++i) {
+        // Waiting for the confirmation from the server
+        char buffer[BUFFER_SIZE] = { 0 };
+        recv(clientSocket, buffer, BUFFER_SIZE, 0);
+        logRequest(i, "bonded");
+    }
 
     // Close socket
     closesocket(clientSocket);
-
     WSACleanup();
 
     return 0;
