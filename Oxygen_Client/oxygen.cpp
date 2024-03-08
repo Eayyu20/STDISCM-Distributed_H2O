@@ -50,12 +50,12 @@ int main() {
     std::cout << "Connected to server." << std::endl;
 
     int M;
-    std::cout << "Enter the number of Oxygen bond requests (N): ";
+    std::cout << "Enter the number of Oxygen bond requests (M): ";
     std::cin >> M;
 
     for (int i = 1; i <= M; ++i) {
         // Sending bond request to the server
-        std::string requestMessage = "O" + std::to_string(i) + " request";
+        std::string requestMessage = "O" + std::to_string(i);
         send(clientSocket, requestMessage.c_str(), requestMessage.size(), 0);
         logRequest(i, "request");
     }

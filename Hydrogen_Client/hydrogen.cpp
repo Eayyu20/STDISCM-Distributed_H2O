@@ -55,7 +55,7 @@ int main() {
 
     for (int i = 1; i <= N; ++i) {
         // Sending bond request to the server
-        std::string requestMessage = "H" + std::to_string(i) + " request";
+        std::string requestMessage = "H" + std::to_string(i);
         send(clientSocket, requestMessage.c_str(), requestMessage.size(), 0);
         logRequest(i, "request");
     }
