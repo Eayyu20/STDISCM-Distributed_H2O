@@ -18,6 +18,15 @@ void logRequest(int id, const char* action) {
     std::cout << "(H" << id << ", " << action << ", " << std::ctime(&timestamp) << ")";
 }
 
+// Listener thread function
+void listenerThread(SOCKET clientSocket, int expectedMessages) {
+    for (int i = 1; i <= expectedMessages; ++i) {
+        char buffer[BUFFER_SIZE] = { 0 };
+        recv(clientSocket, buffer, BUFFER_SIZE, 0);
+        logRequest(i, "bonded");
+    }
+}
+
 int main() {
     // Initialize Winsock
     WSADATA wsaData;
@@ -66,6 +75,18 @@ int main() {
         recv(clientSocket, buffer, BUFFER_SIZE, 0);
         logRequest(i, "bonded");
     }
+
+    // Start the listener thread
+    //std::thread listener(clientSocket, M);
+
+    //for (int i = 1; i <= M; ++i) {
+    //    // Sending bond request to the server
+    //    std::string requestMessage = "O" + std::to_string(i) + " request";
+    //    send(clientSocket, requestMessage.c_str(), requestMessage.size(), 0);
+    //    logRequest(i, "request");
+    //}
+
+    //listener.join();
 
     // Close socket
     closesocket(clientSocket);
