@@ -52,6 +52,9 @@ vc*.pdb
 .vs/
 *.opendb
 *.VC.db
+Solution
+Browse.VC.db
+*.suo
 
 # User-specific files
 *.user
