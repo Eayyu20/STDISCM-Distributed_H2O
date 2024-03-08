@@ -1,4 +1,5 @@
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS
 #include <iostream>
 #include <winsock2.h>
 #include <chrono>
@@ -16,6 +17,15 @@ void logRequest(int id, const char* action) {
     auto now = std::chrono::system_clock::now();
     std::time_t timestamp = std::chrono::system_clock::to_time_t(now);
     std::cout << "(O" << id << ", " << action << ", " << std::ctime(&timestamp) << ")";
+}
+
+// Listener thread function
+void listenerThread(SOCKET clientSocket, int expectedMessages) {
+    for (int i = 1; i <= expectedMessages; ++i) {
+        char buffer[BUFFER_SIZE] = { 0 };
+        recv(clientSocket, buffer, BUFFER_SIZE, 0);
+        logRequest(i, "bonded");
+    }
 }
 
 int main() {
@@ -50,12 +60,12 @@ int main() {
     std::cout << "Connected to server." << std::endl;
 
     int M;
-    std::cout << "Enter the number of Oxygen bond requests (N): ";
+    std::cout << "Enter the number of Oxygen bond requests (M): ";
     std::cin >> M;
 
     for (int i = 1; i <= M; ++i) {
         // Sending bond request to the server
-        std::string requestMessage = "O" + std::to_string(i) + " request";
+        std::string requestMessage = "O" + std::to_string(i);
         send(clientSocket, requestMessage.c_str(), requestMessage.size(), 0);
         logRequest(i, "request");
     }
@@ -66,6 +76,18 @@ int main() {
         recv(clientSocket, buffer, BUFFER_SIZE, 0);
         logRequest(i, "bonded");
     }
+
+    // Start the listener thread
+    //std::thread listener(clientSocket, M);
+
+    //for (int i = 1; i <= M; ++i) {
+    //    // Sending bond request to the server
+    //    std::string requestMessage = "O" + std::to_string(i) + " request";
+    //    send(clientSocket, requestMessage.c_str(), requestMessage.size(), 0);
+    //    logRequest(i, "request");
+    //}
+
+    //listener.join();
 
     // Close socket
     closesocket(clientSocket);
