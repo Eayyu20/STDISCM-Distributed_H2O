@@ -174,9 +174,19 @@ int main() {
                 std::ostringstream oss;
                 oss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d %X");
                 string time_str = oss.str();
-                sendConfirmation(Hclient, Hq[0] + ", bonded, " + time_str);
-                sendConfirmation(Hclient, Hq[1] + ", bonded, " + time_str);
-                sendConfirmation(OClient, Oq[0] + ", bonded, " + time_str);
+                string hm1 = Hq[0] + ", bonded, " + time_str;
+                string hm2 = Hq[1] + ", bonded, " + time_str;
+                string om = Oq[0] + ", bonded, " + time_str;
+
+                sendConfirmation(Hclient, hm1);
+                std::cout << hm1 << std::endl;
+
+                sendConfirmation(Hclient, hm2);
+                std::cout << hm2 << std::endl;
+
+                sendConfirmation(OClient, om);
+                std::cout << om << std::endl;
+
                 Hq.erase(Hq.begin(), Hq.begin() + 2);
                 Oq.erase(Oq.begin());
             }
