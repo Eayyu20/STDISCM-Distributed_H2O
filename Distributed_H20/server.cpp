@@ -4,6 +4,7 @@
 #include <iomanip>
 #include <thread>
 #include <mutex>
+#include <sstream>
 
 using namespace std;
 mutex mtx;
@@ -134,19 +135,60 @@ int main() {
     }
 
     std::cout << "Connections established." << std::endl;
-    std::vector<String> Hq;
-    std::vector<String> Oq;
+    std::vector<string> Hq;
+    std::vector<string> Oq;
     //bool isReady;
     
-    //thread that receives hydrogen and appends to Hq
-    std::vector<string> rh = receiveHydrogen(Hclient);
-    //dont forget mutex when appending
+    mutex mtx;
+    std::thread hydrogenThread([&]() {
+    while (true) {
+        string rh = receiveHydrogen(Hclient);
+        if (!rh.empty()) {
+            std::cout << rh << std::endl; //for testing
+            mtx.lock();
+            Hq.emplace_back(rh);
+            mtx.unlock();
+            }
+        }
+    });
 
-    //thread that receives oxygen and appends to Oq
-    std::vector<string> ro = receiveOxygen(OClient);
-    //dont forget mutex when appending
+    std::thread oxygenThread([&]() {
+    while (true) {
+        string ro = receiveOxygen(OClient);
+        if (!ro.empty()) {
+            std::cout << ro << std::endl; //for testing
+            mtx.lock();
+            Oq.emplace_back(ro);
+            mtx.unlock();
+        }
+        }
+    });
 
     // thread that continually checks the size of Hq and Oq, if Hq >= 2 and Oq, it then sends a confirmation to the two clients using the sendConfirmation function
+    std::thread checkThread([&]() {
+        while (true) {
+            mtx.lock();
+            if (Hq.size() >= 2 && !Oq.empty()) {
+                auto now = std::chrono::system_clock::now();
+                auto in_time_t = std::chrono::system_clock::to_time_t(now);
+                std::ostringstream oss;
+                oss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d %X");
+                string time_str = oss.str();
+                sendConfirmation(Hclient, Hq[0] + ", bonded, " + time_str);
+                sendConfirmation(Hclient, Hq[1] + ", bonded, " + time_str);
+                sendConfirmation(OClient, Oq[0] + ", bonded, " + time_str);
+                Hq.erase(Hq.begin(), Hq.begin() + 2);
+                Oq.erase(Oq.begin());
+            }
+            mtx.unlock();
+        }
+    });
+    
+    //join threads
+    hydrogenThread.join();
+    oxygenThread.join();
+    checkThread.join();
+
     // Close sockets
     closesocket(Hclient);
     closesocket(OClient);
