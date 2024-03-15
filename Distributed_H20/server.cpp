@@ -118,6 +118,7 @@ int main() {
     std::cout << "Waiting for connections..." << std::endl;
 
     // Accept two client connections
+    std::thread connectH([&]() {
     SOCKET Hclient = accept(serverSocket, nullptr, nullptr);
     if (Hclient == INVALID_SOCKET) {
         std::cerr << "Accept failed." << std::endl;
@@ -125,7 +126,8 @@ int main() {
         WSACleanup();
         return 1;
     }
-
+    });
+    std::thread connectO([&]() {
     SOCKET OClient = accept(serverSocket, nullptr, nullptr);
     if (OClient == INVALID_SOCKET) {
         std::cerr << "Accept failed." << std::endl;
@@ -133,6 +135,10 @@ int main() {
         WSACleanup();
         return 1;
     }
+     });
+     
+    connectH.join();
+    connectO.join();
 
     std::cout << "Connections established." << std::endl;
     std::vector<string> Hq;
