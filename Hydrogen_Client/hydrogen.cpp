@@ -13,7 +13,7 @@ constexpr int BUFFER_SIZE = 1024;
 void logRequest(int id, const char* action) {
     auto now = chrono::system_clock::now();
     time_t timestamp = chrono::system_clock::to_time_t(now);
-    cout << "(H" << id << ", " << action << ", " << ctime(&timestamp) << ")" << endl;
+    cout << "H" << id << ", " << action << ", " << ctime(&timestamp) << endl;
 }
 
 int main() {
