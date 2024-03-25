@@ -1,3 +1,4 @@
+#define _CRT_SECURE_NO_WARNINGS
 #include <iostream>
 #include <winsock2.h>
 #include <vector>
@@ -117,10 +118,14 @@ int main() {
 
     std::cout << "Waiting for connections..." << std::endl;
 
+    // Define SOCKET variables outside the threads
+    SOCKET HClient = INVALID_SOCKET;
+    SOCKET OClient = INVALID_SOCKET;
+
     // Accept two client connections
     std::thread connectH([&]() {
-    SOCKET Hclient = accept(serverSocket, nullptr, nullptr);
-    if (Hclient == INVALID_SOCKET) {
+    HClient = accept(serverSocket, nullptr, nullptr);
+    if (HClient == INVALID_SOCKET) {
         std::cerr << "Accept failed." << std::endl;
         closesocket(serverSocket);
         WSACleanup();
@@ -128,7 +133,7 @@ int main() {
     }
     });
     std::thread connectO([&]() {
-    SOCKET OClient = accept(serverSocket, nullptr, nullptr);
+    OClient = accept(serverSocket, nullptr, nullptr);
     if (OClient == INVALID_SOCKET) {
         std::cerr << "Accept failed." << std::endl;
         closesocket(serverSocket);
@@ -148,7 +153,7 @@ int main() {
     mutex mtx;
     std::thread hydrogenThread([&]() {
     while (true) {
-        string rh = receiveHydrogen(Hclient);
+        string rh = receiveHydrogen(HClient);
         if (!rh.empty()) {
             std::cout << rh << std::endl; //for testing
             mtx.lock();
@@ -184,10 +189,10 @@ int main() {
                 string hm2 = Hq[1] + ", bonded, " + time_str;
                 string om = Oq[0] + ", bonded, " + time_str;
 
-                sendConfirmation(Hclient, hm1);
+                sendConfirmation(HClient, hm1);
                 std::cout << hm1 << std::endl;
 
-                sendConfirmation(Hclient, hm2);
+                sendConfirmation(HClient, hm2);
                 std::cout << hm2 << std::endl;
 
                 sendConfirmation(OClient, om);
@@ -206,7 +211,7 @@ int main() {
     checkThread.join();
 
     // Close sockets
-    closesocket(Hclient);
+    closesocket(HClient);
     closesocket(OClient);
     closesocket(serverSocket);
 
