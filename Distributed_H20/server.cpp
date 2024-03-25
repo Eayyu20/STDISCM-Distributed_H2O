@@ -9,6 +9,7 @@
 
 using namespace std;
 mutex mtx;
+atomic<bool> running(true);  // Used to control the lifetime of threads
 #define LIMIT 100000000
 #pragma comment(lib, "ws2_32.lib")
 
@@ -123,24 +124,25 @@ int main() {
     SOCKET OClient = INVALID_SOCKET;
 
     // Accept two client connections
-    std::thread connectH([&]() {
-    HClient = accept(serverSocket, nullptr, nullptr);
-    if (HClient == INVALID_SOCKET) {
-        std::cerr << "Accept failed." << std::endl;
-        closesocket(serverSocket);
-        WSACleanup();
-        return 1;
-    }
-    });
-    std::thread connectO([&]() {
-    OClient = accept(serverSocket, nullptr, nullptr);
-    if (OClient == INVALID_SOCKET) {
-        std::cerr << "Accept failed." << std::endl;
-        closesocket(serverSocket);
-        WSACleanup();
-        return 1;
-    }
-     });
+    thread connectH([&]() {
+        HClient = accept(serverSocket, nullptr, nullptr);
+        if (HClient == INVALID_SOCKET) {
+            cerr << "Accept failed." << endl;
+            closesocket(serverSocket);
+            WSACleanup();
+            running = false;  // Stop all threads on accept failure
+        }
+        });
+
+    thread connectO([&]() {
+        OClient = accept(serverSocket, nullptr, nullptr);
+        if (OClient == INVALID_SOCKET) {
+            cerr << "Accept failed." << endl;
+            closesocket(serverSocket);
+            WSACleanup();
+            running = false;  // Stop all threads on accept failure
+        }
+        });
      
     connectH.join();
     connectO.join();
@@ -152,58 +154,45 @@ int main() {
     
     mutex mtx;
     std::thread hydrogenThread([&]() {
-    while (true) {
-        string rh = receiveHydrogen(HClient);
-        if (!rh.empty()) {
-            std::cout << rh << std::endl; //for testing
-            mtx.lock();
-            Hq.emplace_back(rh);
-            mtx.unlock();
-            }
-        }
-    });
+        while (running) {
+            string rh = receiveHydrogen(HClient);
+            if (rh.empty()) break;  // Exit loop if receive fails
 
-    std::thread oxygenThread([&]() {
-    while (true) {
-        string ro = receiveOxygen(OClient);
-        if (!ro.empty()) {
-            std::cout << ro << std::endl; //for testing
-            mtx.lock();
+            lock_guard<mutex> lock(mtx);
+            Hq.emplace_back(rh);
+            cout << "Received from Hydrogen: " << rh << endl;
+        }
+        });
+
+    thread oxygenThread([&]() {
+        while (running) {
+            string ro = receiveOxygen(OClient);
+            if (ro.empty()) break;  // Exit loop if receive fails
+
+            lock_guard<mutex> lock(mtx);
             Oq.emplace_back(ro);
-            mtx.unlock();
+            cout << "Received from Oxygen: " << ro << endl;
         }
-        }
-    });
+        });
 
     // thread that continually checks the size of Hq and Oq, if Hq >= 2 and Oq, it then sends a confirmation to the two clients using the sendConfirmation function
-    std::thread checkThread([&]() {
-        while (true) {
-            mtx.lock();
+    thread checkThread([&]() {
+        while (running) {
+            lock_guard<mutex> lock(mtx);
             if (Hq.size() >= 2 && !Oq.empty()) {
-                auto now = std::chrono::system_clock::now();
-                auto in_time_t = std::chrono::system_clock::to_time_t(now);
-                std::ostringstream oss;
-                oss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d %X");
-                string time_str = oss.str();
-                string hm1 = Hq[0] + ", bonded, " + time_str;
-                string hm2 = Hq[1] + ", bonded, " + time_str;
-                string om = Oq[0] + ", bonded, " + time_str;
+                string hm1 = Hq[0];
+                string hm2 = Hq[1];
+                string om = Oq[0];
 
-                sendConfirmation(HClient, hm1);
-                std::cout << hm1 << std::endl;
-
-                sendConfirmation(HClient, hm2);
-                std::cout << hm2 << std::endl;
-
-                sendConfirmation(OClient, om);
-                std::cout << om << std::endl;
+                sendConfirmation(HClient, hm1 + ", bonded");
+                sendConfirmation(HClient, hm2 + ", bonded");
+                sendConfirmation(OClient, om + ", bonded");
 
                 Hq.erase(Hq.begin(), Hq.begin() + 2);
                 Oq.erase(Oq.begin());
             }
-            mtx.unlock();
         }
-    });
+        });
     
     //join threads
     hydrogenThread.join();
