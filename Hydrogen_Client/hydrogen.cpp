@@ -3,43 +3,31 @@
 #include <iostream>
 #include <winsock2.h>
 #include <chrono>
-#include <vector>
-#include <thread>
-#include <mutex>
+#include <string>
 
 using namespace std;
 
 #pragma comment(lib, "ws2_32.lib")
 constexpr int BUFFER_SIZE = 1024;
-mutex mtx;
 
 void logRequest(int id, const char* action) {
-    auto now = std::chrono::system_clock::now();
-    std::time_t timestamp = std::chrono::system_clock::to_time_t(now);
-    std::cout << "(H" << id << ", " << action << ", " << std::ctime(&timestamp) << ")";
-}
-
-// Listener thread function
-void listenerThread(SOCKET clientSocket, int expectedMessages) {
-    for (int i = 1; i <= expectedMessages; ++i) {
-        char buffer[BUFFER_SIZE] = { 0 };
-        recv(clientSocket, buffer, BUFFER_SIZE, 0);
-        logRequest(i, "bonded");
-    }
+    auto now = chrono::system_clock::now();
+    time_t timestamp = chrono::system_clock::to_time_t(now);
+    cout << "(H" << id << ", " << action << ", " << ctime(&timestamp) << ")" << endl;
 }
 
 int main() {
     // Initialize Winsock
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        std::cerr << "WSAStartup failed." << std::endl;
+        cerr << "WSAStartup failed." << endl;
         return 1;
     }
 
     // Create socket
     SOCKET clientSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (clientSocket == INVALID_SOCKET) {
-        std::cerr << "Socket creation failed." << std::endl;
+        cerr << "Socket creation failed." << endl;
         WSACleanup();
         return 1;
     }
@@ -47,49 +35,44 @@ int main() {
     // Connect to the server
     sockaddr_in serverAddr;
     serverAddr.sin_family = AF_INET;
-    serverAddr.sin_addr.s_addr = inet_addr("192.168.1.37"); // Change to the server's IP address
+    serverAddr.sin_addr.s_addr = inet_addr("10.147.17.27");  // Server IP address
     serverAddr.sin_port = htons(12345);
 
     if (connect(clientSocket, reinterpret_cast<sockaddr*>(&serverAddr), sizeof(serverAddr)) == SOCKET_ERROR) {
-        std::cerr << "Connection failed." << std::endl;
+        cerr << "Connection failed." << WSAGetLastError() << endl;
         closesocket(clientSocket);
         WSACleanup();
         return 1;
     }
 
-    std::cout << "Connected to server." << std::endl;
+    cout << "Connected to server." << endl;
 
     int N;
-    std::cout << "Enter the number of hydrogen bond requests (N): ";
-    std::cin >> N;
+    cout << "Enter the number of hydrogen bond requests (N): ";
+    cin >> N;
 
     for (int i = 1; i <= N; ++i) {
         // Sending bond request to the server
-        std::string requestMessage = "H" + std::to_string(i);
-        send(clientSocket, requestMessage.c_str(), requestMessage.size(), 0);
+        int requestMessage = htonl(i);  // Convert to network byte order
+
+        if (send(clientSocket, (char*)&requestMessage, sizeof(requestMessage), 0) == SOCKET_ERROR) {
+            cerr << "Failed to send request: " << WSAGetLastError() << endl;
+            break;  // Exit loop on send failure
+        }
+
         logRequest(i, "request");
     }
 
+    // Receive bond confirmations
     for (int i = 1; i <= N; ++i) {
-        // Waiting for the confirmation from the server
         char buffer[BUFFER_SIZE] = { 0 };
-        recv(clientSocket, buffer, BUFFER_SIZE, 0);
+        if (recv(clientSocket, buffer, BUFFER_SIZE, 0) == SOCKET_ERROR) {
+            cerr << "Failed to receive confirmation: " << WSAGetLastError() << endl;
+            break;  // Exit loop on receive failure
+        }
         logRequest(i, "bonded");
     }
 
-    // Start the listener thread
-    //std::thread listener(clientSocket, M);
-
-    //for (int i = 1; i <= M; ++i) {
-    //    // Sending bond request to the server
-    //    std::string requestMessage = "O" + std::to_string(i) + " request";
-    //    send(clientSocket, requestMessage.c_str(), requestMessage.size(), 0);
-    //    logRequest(i, "request");
-    //}
-
-    //listener.join();
-
-    // Close socket
     closesocket(clientSocket);
     WSACleanup();
 
