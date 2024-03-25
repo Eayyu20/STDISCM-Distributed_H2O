@@ -34,6 +34,12 @@ void sendConfirmation(SOCKET clientSocket, const string& message) {
     //print that you sent <something> at <timestamp>
 }
 
+void logRequest(int id, const char* action, char client) {
+    auto now = chrono::system_clock::now();
+    time_t timestamp = chrono::system_clock::to_time_t(now);
+    cout  << client << id << ", " << action << ", " << ctime(&timestamp) << endl;
+}
+
 string receiveHydrogen(SOCKET clientSocket) {
     int requestNumber;
     int bytesReceived = recv(clientSocket, reinterpret_cast<char*>(&requestNumber), sizeof(requestNumber), 0);
@@ -45,33 +51,28 @@ string receiveHydrogen(SOCKET clientSocket) {
     // Convert from network byte order to host byte order
     requestNumber = ntohl(requestNumber);
 
+    logRequest(requestNumber, "received", 'H');
+
     // Convert the integer to a string for consistent return type
     return "H" + to_string(requestNumber);
 }
 
 
 string receiveOxygen(SOCKET clientSocket) {
-    // Receive the length of the string
-    size_t lengthNetwork;
-    int bytesReceived = recv(clientSocket, reinterpret_cast<char*>(&lengthNetwork), sizeof(lengthNetwork), 0);
+    int requestNumber;
+    int bytesReceived = recv(clientSocket, reinterpret_cast<char*>(&requestNumber), sizeof(requestNumber), 0);
     if (bytesReceived <= 0) {
-        cerr << "Failed to receive string length." << endl;
-        return ""; // Return an empty string in case of error
+        cerr << "Failed to receive request number: " << WSAGetLastError() << endl;
+        return "";
     }
-    size_t length = ntohl(lengthNetwork);
 
-    // Receive the string
-    vector<char> buffer(length);
-    bytesReceived = recv(clientSocket, buffer.data(), length, 0);
-    if (bytesReceived <= 0) {
-        cerr << "Failed to receive string." << endl;
-        return ""; // Return an empty string in case of error
-    }
-    //print that you received <something> at <timestamp>
-    cerr << string(buffer.begin(), buffer.end()) << endl;
+    // Convert from network byte order to host byte order
+    requestNumber = ntohl(requestNumber);
 
-    // Convert the buffer to a string and return it
-    return string(buffer.begin(), buffer.end());
+    logRequest(requestNumber, "received", 'O');
+
+    // Convert the integer to a string for consistent return type
+    return "O" + to_string(requestNumber);
 }
 
 int main() {
@@ -126,20 +127,20 @@ int main() {
             WSACleanup();
             running = false;  // Stop all threads on accept failure
         }
-        });
+    });
 
-    //thread connectO([&]() {
-    //    OClient = accept(serverSocket, nullptr, nullptr);
-    //    if (OClient == INVALID_SOCKET) {
-    //        cerr << "Accept failed." << endl;
-    //        closesocket(serverSocket);
-    //        WSACleanup();
-    //        running = false;  // Stop all threads on accept failure
-    //    }
-    //    });
+    thread connectO([&]() {
+        OClient = accept(serverSocket, nullptr, nullptr);
+        if (OClient == INVALID_SOCKET) {
+            cerr << "Accept failed." << endl;
+            closesocket(serverSocket);
+            WSACleanup();
+            running = false;  // Stop all threads on accept failure
+        }
+    });
      
     connectH.join();
-    //connectO.join();
+    connectO.join();
 
     std::cout << "Connections established." << std::endl;
     std::vector<string> Hq;
@@ -151,31 +152,29 @@ int main() {
         while (true) {
             string rh = receiveHydrogen(HClient);
             if (rh.empty()) {
-                //cerr << "Error receiving from Hydrogen client or connection closed." << endl;
-                //break;
+                cerr << "Error receiving from Hydrogen client or connection closed." << endl;
+                break;
             }
             else {
                 lock_guard<mutex> lock(mtx);
                 Hq.emplace_back(rh);
-                cout << "Received from Hydrogen: " << rh << endl;
             }
         }
     });
 
-    //thread oxygenThread([&]() {
-    //    while (true) {
-    //        string ro = receiveOxygen(OClient);
-    //        if (ro.empty()) {
-    //            cerr << "Error receiving from Oxygen client or connection closed." << endl;
-    //            break;
-    //        }
-    //        else {
-    //            lock_guard<mutex> lock(mtx);
-    //            Oq.emplace_back(ro);
-    //            cout << "Received from Oxygen: " << ro << endl;
-    //        }
-    //    }
-    //    });
+    thread oxygenThread([&]() {
+        while (true) {
+            string ro = receiveOxygen(OClient);
+            if (ro.empty()) {
+                cerr << "Error receiving from Oxygen client or connection closed." << endl;
+                break;
+            }
+            else {
+                lock_guard<mutex> lock(mtx);
+                Oq.emplace_back(ro);
+            }
+        }
+    });
 
 
     // thread that continually checks the size of Hq and Oq, if Hq >= 2 and Oq, it then sends a confirmation to the two clients using the sendConfirmation function
@@ -199,13 +198,8 @@ int main() {
     
     //join threads
     hydrogenThread.join();
-    //oxygenThread.detach();
+    oxygenThread.join();
     //checkThread.detach();
-
-    // print out Hq only using a loop
-    for (int i = 0; i < Hq.size(); i++) {
-		cout << Hq[i] << endl;
-	}
 
     // Close sockets
     closesocket(HClient);
