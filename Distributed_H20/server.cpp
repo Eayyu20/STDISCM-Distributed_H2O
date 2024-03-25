@@ -44,7 +44,7 @@ string receiveHydrogen(SOCKET clientSocket) {
     int requestNumber;
     int bytesReceived = recv(clientSocket, reinterpret_cast<char*>(&requestNumber), sizeof(requestNumber), 0);
     if (bytesReceived <= 0) {
-        cerr << "Failed to receive request number: " << WSAGetLastError() << endl;
+        //cerr << "Failed to receive request number: " << WSAGetLastError() << endl;
         return "";
     }
 
@@ -62,7 +62,7 @@ string receiveOxygen(SOCKET clientSocket) {
     int requestNumber;
     int bytesReceived = recv(clientSocket, reinterpret_cast<char*>(&requestNumber), sizeof(requestNumber), 0);
     if (bytesReceived <= 0) {
-        cerr << "Failed to receive request number: " << WSAGetLastError() << endl;
+        //cerr << "Failed to receive request number: " << WSAGetLastError() << endl;
         return "";
     }
 
@@ -178,28 +178,31 @@ int main() {
 
 
     // thread that continually checks the size of Hq and Oq, if Hq >= 2 and Oq, it then sends a confirmation to the two clients using the sendConfirmation function
-    //thread checkThread([&]() {
-    //    while (true) {
-    //        lock_guard<mutex> lock(mtx);
-    //        if (Hq.size() >= 2 && !Oq.empty()) {
-    //            string hm1 = Hq[0];
-    //            string hm2 = Hq[1];
-    //            string om = Oq[0];
+    thread checkThread([&]() {
+        while (true) {
+            lock_guard<mutex> lock(mtx);
+            if (Hq.size() >= 2 && !Oq.empty()) {
+                string hm1 = Hq[0];
+                string hm2 = Hq[1];
+                string om = Oq[0];
 
-    //            sendConfirmation(HClient, hm1 + ", bonded");
-    //            sendConfirmation(HClient, hm2 + ", bonded");
-    //            sendConfirmation(OClient, om + ", bonded");
+                sendConfirmation(HClient, hm1 + ", bonded");
+                sendConfirmation(HClient, hm2 + ", bonded");
+                sendConfirmation(OClient, om + ", bonded");
+                logRequest(stoi(hm1.substr(1)), "bonded", 'H');
+                logRequest(stoi(hm2.substr(1)), "bonded", 'H');
+                logRequest(stoi(om.substr(1)), "bonded", 'O');
 
-    //            Hq.erase(Hq.begin(), Hq.begin() + 2);
-    //            Oq.erase(Oq.begin());
-    //        }
-    //    }
-    //});
+                Hq.erase(Hq.begin(), Hq.begin() + 2);
+                Oq.erase(Oq.begin());
+            }
+        }
+    });
     
     //join threads
     hydrogenThread.join();
     oxygenThread.join();
-    //checkThread.detach();
+    checkThread.join();
 
     // Close sockets
     closesocket(HClient);
