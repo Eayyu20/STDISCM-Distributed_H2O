@@ -13,31 +13,37 @@ atomic<bool> running(true);  // Used to control the lifetime of threads
 #define LIMIT 100000000
 #pragma comment(lib, "ws2_32.lib")
 
-void sendConfirmation(SOCKET clientSocket, const string& message) {
-    // Convert the string to network byte order
-    size_t lengthNetwork = htonl(message.size());
-
-    // Send the size of the string first
-    int bytesSent = send(clientSocket, reinterpret_cast<const char*>(&lengthNetwork), sizeof(lengthNetwork), 0);
-    if (bytesSent == SOCKET_ERROR) {
-        cerr << "Failed to send message length: " << WSAGetLastError() << endl;
-        return;
-    }
-
-    // Then, send the string
-    bytesSent = send(clientSocket, message.c_str(), message.size(), 0);
-    if (bytesSent == SOCKET_ERROR) {
-        cerr << "Failed to send message: " << WSAGetLastError() << endl;
-        return;
-    }
-
-    //print that you sent <something> at <timestamp>
-}
-
 void logRequest(int id, const char* action, char client) {
     auto now = chrono::system_clock::now();
     time_t timestamp = chrono::system_clock::to_time_t(now);
-    cout  << client << id << ", " << action << ", " << ctime(&timestamp) << endl;
+    cout << client << id << ", " << action << ", " << ctime(&timestamp) << endl;
+}
+
+//void sendConfirmation(SOCKET clientSocket, const string& message) {
+//    // Convert the string to network byte order
+//    size_t lengthNetwork = htonl(message.size());
+//
+//    // Send the size of the string first
+//    int bytesSent = send(clientSocket, reinterpret_cast<const char*>(&lengthNetwork), sizeof(lengthNetwork), 0);
+//    if (bytesSent == SOCKET_ERROR) {
+//        cerr << "Failed to send message length: " << WSAGetLastError() << endl;
+//        return;
+//    }
+//
+//    // Then, send the string
+//    bytesSent = send(clientSocket, message.c_str(), message.size(), 0);
+//    if (bytesSent == SOCKET_ERROR) {
+//        cerr << "Failed to send message: " << WSAGetLastError() << endl;
+//        return;
+//    }
+//}
+
+void sendConfirmation(SOCKET clientSocket, int id) {
+    int bondedNumber = htonl(id);
+
+    if (send(clientSocket, (char*)&bondedNumber, sizeof(bondedNumber), 0) == SOCKET_ERROR) {
+        cerr << "Failed to send confirmation: " << WSAGetLastError() << endl;
+    }
 }
 
 string receiveHydrogen(SOCKET clientSocket) {
@@ -146,16 +152,6 @@ int main() {
     std::cout << "Connections established." << std::endl;
     std::vector<string> Hq;
     std::vector<string> Oq;
-    //bool isReady;
-   
-    /*if (rh.empty()) {
-                cerr << "Error receiving from Hydrogen client or connection closed." << endl;
-                break;
-            }
-            else {
-                lock_guard<mutex> lock(mtx);
-                Hq.emplace_back(rh);
-            }*/
 
     //Threads for accepting atoms from clients
     mutex mtx;
@@ -182,6 +178,7 @@ int main() {
     });
     oxygenThread.detach();
 
+    //Bonding
     while (true) {
         bool molecules_available = false;
         {
@@ -195,13 +192,19 @@ int main() {
                 hm1 = Hq[0];
                 hm2 = Hq[1];
                 om = Oq[0];
+
                 Hq.erase(Hq.begin(), Hq.begin() + 2);
                 Oq.erase(Oq.begin());
             }
 
-            sendConfirmation(HClient, hm1 + ", bonded");
-            sendConfirmation(HClient, hm2 + ", bonded");
-            sendConfirmation(OClient, om + ", bonded");
+            logRequest(stoi(hm1.substr(1)), "bonded", 'H');
+            sendConfirmation(HClient, stoi(hm1.substr(1)));
+           
+            logRequest(stoi(hm2.substr(1)), "bonded", 'H');
+            sendConfirmation(HClient, stoi(hm2.substr(1)));
+            
+            logRequest(stoi(om.substr(1)), "bonded", 'O');
+            sendConfirmation(OClient, stoi(om.substr(1)));
         }
     }
 

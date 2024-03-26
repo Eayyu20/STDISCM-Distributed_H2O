@@ -4,6 +4,7 @@
 #include <winsock2.h>
 #include <chrono>
 #include <string>
+#include <thread>
 
 using namespace std;
 
@@ -14,6 +15,25 @@ void logRequest(int id, const char* action) {
     auto now = chrono::system_clock::now();
     time_t timestamp = chrono::system_clock::to_time_t(now);
     cout << "H" << id << ", " << action << ", " << ctime(&timestamp) << endl;
+}
+
+void listeningThread(SOCKET clientSocket) {
+    while (true) {
+        int bondedNumber;
+        int bytesReceived = recv(clientSocket, reinterpret_cast<char*>(&bondedNumber), sizeof(bondedNumber), 0);
+        if (bytesReceived <= 0) {
+            cerr << "Failed to receive bonded number: " << WSAGetLastError() << endl;
+            // Handle the error appropriately, such as breaking out of the loop or retrying
+            break; // Exiting the thread due to error
+        }
+        else {
+            // Convert from network byte order to host byte order
+            bondedNumber = ntohl(bondedNumber);
+
+            // Process the received bonded number (you may want to add this to a queue or perform some other action)
+            logRequest(bondedNumber, "bonded");
+        }
+    }
 }
 
 int main() {
@@ -50,6 +70,12 @@ int main() {
     int N;
     cout << "Enter the number of hydrogen bond requests (N): ";
     cin >> N;
+
+    // Create and start the listening thread
+   thread listeningThread(listeningThread, clientSocket);
+
+    // Optionally detach the thread if you want it to run independently
+   listeningThread.detach();
 
     for (int i = 1; i <= N; ++i) {
         // Sending bond request to the server
