@@ -45,13 +45,14 @@ string receiveHydrogen(SOCKET clientSocket) {
     int bytesReceived = recv(clientSocket, reinterpret_cast<char*>(&requestNumber), sizeof(requestNumber), 0);
     if (bytesReceived <= 0) {
         //cerr << "Failed to receive request number: " << WSAGetLastError() << endl;
+        //
         return "";
     }
 
     // Convert from network byte order to host byte order
     requestNumber = ntohl(requestNumber);
 
-    logRequest(requestNumber, "received", 'H');
+    logRequest(requestNumber, "request", 'H');
 
     // Convert the integer to a string for consistent return type
     return "H" + to_string(requestNumber);
@@ -69,7 +70,7 @@ string receiveOxygen(SOCKET clientSocket) {
     // Convert from network byte order to host byte order
     requestNumber = ntohl(requestNumber);
 
-    logRequest(requestNumber, "received", 'O');
+    logRequest(requestNumber, "request", 'O');
 
     // Convert the integer to a string for consistent return type
     return "O" + to_string(requestNumber);
@@ -146,63 +147,68 @@ int main() {
     std::vector<string> Hq;
     std::vector<string> Oq;
     //bool isReady;
-    
-    mutex mtx;
-    thread hydrogenThread([&]() {
-        while (true) {
-            string rh = receiveHydrogen(HClient);
-            if (rh.empty()) {
+   
+    /*if (rh.empty()) {
                 cerr << "Error receiving from Hydrogen client or connection closed." << endl;
                 break;
             }
             else {
                 lock_guard<mutex> lock(mtx);
                 Hq.emplace_back(rh);
+            }*/
+
+    //Threads for accepting atoms from clients
+    mutex mtx;
+    
+    thread hydrogenThread([&]() {
+        while (true) {
+            string rh = receiveHydrogen(HClient);
+            if (!rh.empty()) {
+                lock_guard<mutex> lock(mtx);
+                Hq.emplace_back(rh);
             }
         }
     });
+    hydrogenThread.detach();
 
     thread oxygenThread([&]() {
         while (true) {
             string ro = receiveOxygen(OClient);
-            if (ro.empty()) {
-                cerr << "Error receiving from Oxygen client or connection closed." << endl;
-                break;
-            }
-            else {
+            if (!ro.empty()) {
                 lock_guard<mutex> lock(mtx);
                 Oq.emplace_back(ro);
             }
         }
     });
+    oxygenThread.detach();
 
-
-    // thread that continually checks the size of Hq and Oq, if Hq >= 2 and Oq, it then sends a confirmation to the two clients using the sendConfirmation function
-    thread checkThread([&]() {
-        while (true) {
+    while (true) {
+        bool molecules_available = false;
+        {
             lock_guard<mutex> lock(mtx);
-            if (Hq.size() >= 2 && !Oq.empty()) {
-                string hm1 = Hq[0];
-                string hm2 = Hq[1];
-                string om = Oq[0];
-
-                sendConfirmation(HClient, hm1 + ", bonded");
-                sendConfirmation(HClient, hm2 + ", bonded");
-                sendConfirmation(OClient, om + ", bonded");
-                logRequest(stoi(hm1.substr(1)), "bonded", 'H');
-                logRequest(stoi(hm2.substr(1)), "bonded", 'H');
-                logRequest(stoi(om.substr(1)), "bonded", 'O');
-
+            molecules_available = (Hq.size() >= 2 && !Oq.empty());
+        }
+        if (molecules_available) {
+            string hm1, hm2, om;
+            {
+                lock_guard<mutex> lock(mtx);
+                hm1 = Hq[0];
+                hm2 = Hq[1];
+                om = Oq[0];
                 Hq.erase(Hq.begin(), Hq.begin() + 2);
                 Oq.erase(Oq.begin());
             }
+
+            sendConfirmation(HClient, hm1 + ", bonded");
+            sendConfirmation(HClient, hm2 + ", bonded");
+            sendConfirmation(OClient, om + ", bonded");
         }
-    });
-    
+    }
+
     //join threads
-    hydrogenThread.join();
+   /* hydrogenThread.join();
     oxygenThread.join();
-    checkThread.join();
+    checkThread.join();*/
 
     // Close sockets
     closesocket(HClient);
