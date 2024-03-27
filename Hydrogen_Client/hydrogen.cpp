@@ -72,32 +72,35 @@ int main() {
     cin >> N;
 
     // Create and start the listening thread
-   thread listeningThread(listeningThread, clientSocket);
+    std::thread listeningThread([clientSocket]() {
+        listeningThread(clientSocket);
+        });
 
     // Optionally detach the thread if you want it to run independently
    listeningThread.detach();
 
-    for (int i = 1; i <= N; ++i) {
-        // Sending bond request to the server
-        int requestMessage = htonl(i);  // Convert to network byte order
+   while (true) {
+       for (int i = 1; i <= N; ++i) {
+           // Sending bond request to the server
+           int requestMessage = htonl(i);  // Convert to network byte order
 
-        if (send(clientSocket, (char*)&requestMessage, sizeof(requestMessage), 0) == SOCKET_ERROR) {
-            cerr << "Failed to send request: " << WSAGetLastError() << endl;
-            break;  // Exit loop on send failure
-        }
+           if (send(clientSocket, (char*)&requestMessage, sizeof(requestMessage), 0) == SOCKET_ERROR) {
+               cerr << "Failed to send request: " << WSAGetLastError() << endl;
+               break;  // Exit loop on send failure
+           }
 
-        logRequest(i, "request");
-    }
-
-    // Receive bond confirmations
-    for (int i = 1; i <= N; ++i) {
-        char buffer[BUFFER_SIZE] = { 0 };
-        if (recv(clientSocket, buffer, BUFFER_SIZE, 0) == SOCKET_ERROR) {
-            cerr << "Failed to receive confirmation: " << WSAGetLastError() << endl;
-            break;  // Exit loop on receive failure
-        }
-        logRequest(i, "bonded");
-    }
+           logRequest(i, "request");
+       }
+   }
+    //// Receive bond confirmations
+    //for (int i = 1; i <= N; ++i) {
+    //    char buffer[BUFFER_SIZE] = { 0 };
+    //    if (recv(clientSocket, buffer, BUFFER_SIZE, 0) == SOCKET_ERROR) {
+    //        cerr << "Failed to receive confirmation: " << WSAGetLastError() << endl;
+    //        break;  // Exit loop on receive failure
+    //    }
+    //    logRequest(i, "bonded");
+    //}
 
     closesocket(clientSocket);
     WSACleanup();

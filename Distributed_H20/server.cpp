@@ -42,7 +42,7 @@ void sendConfirmation(SOCKET clientSocket, int id) {
     int bondedNumber = htonl(id);
 
     if (send(clientSocket, (char*)&bondedNumber, sizeof(bondedNumber), 0) == SOCKET_ERROR) {
-        cerr << "Failed to send confirmation: " << WSAGetLastError() << endl;
+        cerr << "Failed to send confirmation: " << clientSocket << WSAGetLastError() << endl;
     }
 }
 
@@ -63,7 +63,6 @@ string receiveHydrogen(SOCKET clientSocket) {
     // Convert the integer to a string for consistent return type
     return "H" + to_string(requestNumber);
 }
-
 
 string receiveOxygen(SOCKET clientSocket) {
     int requestNumber;
@@ -197,14 +196,15 @@ int main() {
                 Oq.erase(Oq.begin());
             }
 
-            logRequest(stoi(hm1.substr(1)), "bonded", 'H');
             sendConfirmation(HClient, stoi(hm1.substr(1)));
+            logRequest(stoi(hm1.substr(1)), "bonded", 'H');
+
            
-            logRequest(stoi(hm2.substr(1)), "bonded", 'H');
             sendConfirmation(HClient, stoi(hm2.substr(1)));
+            logRequest(stoi(hm2.substr(1)), "bonded", 'H');
             
-            logRequest(stoi(om.substr(1)), "bonded", 'O');
             sendConfirmation(OClient, stoi(om.substr(1)));
+            logRequest(stoi(om.substr(1)), "bonded", 'O');
         }
     }
 
