@@ -23,14 +23,13 @@ void listeningThread(SOCKET clientSocket) {
         int bytesReceived = recv(clientSocket, reinterpret_cast<char*>(&bondedNumber), sizeof(bondedNumber), 0);
         if (bytesReceived <= 0) {
             cerr << "Failed to receive bonded number: " << WSAGetLastError() << endl;
-            // Handle the error appropriately, such as breaking out of the loop or retrying
             break; // Exiting the thread due to error
         }
         else {
             // Convert from network byte order to host byte order
             bondedNumber = ntohl(bondedNumber);
 
-            // Process the received bonded number (you may want to add this to a queue or perform some other action)
+            // Process the received bonded number 
             logRequest(bondedNumber, "bonded");
         }
     }
@@ -55,7 +54,7 @@ int main() {
     // Connect to the server
     sockaddr_in serverAddr;
     serverAddr.sin_family = AF_INET;
-    serverAddr.sin_addr.s_addr = inet_addr("172.20.10.3");  // Server IP address
+    serverAddr.sin_addr.s_addr = inet_addr("10.147.17.27");  // Server IP address
     serverAddr.sin_port = htons(12345);
 
     if (connect(clientSocket, reinterpret_cast<sockaddr*>(&serverAddr), sizeof(serverAddr)) == SOCKET_ERROR) {
@@ -68,39 +67,33 @@ int main() {
     cout << "Connected to server." << endl;
 
     int N;
-    cout << "Enter the number of hydrogen bond requests (N): ";
-    cin >> N;
 
     // Create and start the listening thread
     std::thread listeningThread([clientSocket]() {
         listeningThread(clientSocket);
         });
 
-    // Optionally detach the thread if you want it to run independently
+    // Detach the thread to run independently
    listeningThread.detach();
 
-   while (true) {
-       for (int i = 1; i <= N; ++i) {
-           // Sending bond request to the server
-           int requestMessage = htonl(i);  // Convert to network byte order
+   cout << "Enter the number of hydrogen bond requests (N): ";
+   cin >> N;
 
-           if (send(clientSocket, (char*)&requestMessage, sizeof(requestMessage), 0) == SOCKET_ERROR) {
-               cerr << "Failed to send request: " << WSAGetLastError() << endl;
-               break;  // Exit loop on send failure
-           }
+   for (int i = 1; i <= N; ++i) {
+       // Sending bond request to the server
+       int requestMessage = htonl(i);  // Convert to network byte order
 
-           logRequest(i, "request");
+       if (send(clientSocket, (char*)&requestMessage, sizeof(requestMessage), 0) == SOCKET_ERROR) {
+           cerr << "Failed to send request: " << WSAGetLastError() << endl;
+           break;  // Exit loop on send failure
        }
+
+       logRequest(i, "request");
    }
-    //// Receive bond confirmations
-    //for (int i = 1; i <= N; ++i) {
-    //    char buffer[BUFFER_SIZE] = { 0 };
-    //    if (recv(clientSocket, buffer, BUFFER_SIZE, 0) == SOCKET_ERROR) {
-    //        cerr << "Failed to receive confirmation: " << WSAGetLastError() << endl;
-    //        break;  // Exit loop on receive failure
-    //    }
-    //    logRequest(i, "bonded");
-    //}
+
+   while (true) {
+       
+   }
 
     closesocket(clientSocket);
     WSACleanup();

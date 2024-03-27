@@ -9,7 +9,6 @@
 
 using namespace std;
 mutex mtx;
-atomic<bool> running(true);  // Used to control the lifetime of threads
 #define LIMIT 100000000
 #pragma comment(lib, "ws2_32.lib")
 
@@ -19,39 +18,19 @@ void logRequest(int id, const char* action, char client) {
     cout << client << id << ", " << action << ", " << ctime(&timestamp) << endl;
 }
 
-//void sendConfirmation(SOCKET clientSocket, const string& message) {
-//    // Convert the string to network byte order
-//    size_t lengthNetwork = htonl(message.size());
-//
-//    // Send the size of the string first
-//    int bytesSent = send(clientSocket, reinterpret_cast<const char*>(&lengthNetwork), sizeof(lengthNetwork), 0);
-//    if (bytesSent == SOCKET_ERROR) {
-//        cerr << "Failed to send message length: " << WSAGetLastError() << endl;
-//        return;
-//    }
-//
-//    // Then, send the string
-//    bytesSent = send(clientSocket, message.c_str(), message.size(), 0);
-//    if (bytesSent == SOCKET_ERROR) {
-//        cerr << "Failed to send message: " << WSAGetLastError() << endl;
-//        return;
-//    }
-//}
-
-void sendConfirmation(SOCKET clientSocket, int id) {
+void sendConfirmation(SOCKET clientSocket, int id, char client) {
     int bondedNumber = htonl(id);
 
     if (send(clientSocket, (char*)&bondedNumber, sizeof(bondedNumber), 0) == SOCKET_ERROR) {
         cerr << "Failed to send confirmation: " << clientSocket << WSAGetLastError() << endl;
     }
+    logRequest(id, "bonded", client);
 }
 
 string receiveHydrogen(SOCKET clientSocket) {
     int requestNumber;
     int bytesReceived = recv(clientSocket, reinterpret_cast<char*>(&requestNumber), sizeof(requestNumber), 0);
     if (bytesReceived <= 0) {
-        //cerr << "Failed to receive request number: " << WSAGetLastError() << endl;
-        //
         return "";
     }
 
@@ -68,7 +47,6 @@ string receiveOxygen(SOCKET clientSocket) {
     int requestNumber;
     int bytesReceived = recv(clientSocket, reinterpret_cast<char*>(&requestNumber), sizeof(requestNumber), 0);
     if (bytesReceived <= 0) {
-        //cerr << "Failed to receive request number: " << WSAGetLastError() << endl;
         return "";
     }
 
@@ -131,7 +109,6 @@ int main() {
             cerr << "Accept failed." << endl;
             closesocket(serverSocket);
             WSACleanup();
-            running = false;  // Stop all threads on accept failure
         }
     });
 
@@ -141,7 +118,6 @@ int main() {
             cerr << "Accept failed." << endl;
             closesocket(serverSocket);
             WSACleanup();
-            running = false;  // Stop all threads on accept failure
         }
     });
      
@@ -194,24 +170,15 @@ int main() {
 
                 Hq.erase(Hq.begin(), Hq.begin() + 2);
                 Oq.erase(Oq.begin());
+
+                sendConfirmation(HClient, stoi(hm1.substr(1)), 'H');
+
+                sendConfirmation(HClient, stoi(hm2.substr(1)), 'H');
+
+                sendConfirmation(OClient, stoi(om.substr(1)), 'O');
             }
-
-            sendConfirmation(HClient, stoi(hm1.substr(1)));
-            logRequest(stoi(hm1.substr(1)), "bonded", 'H');
-
-           
-            sendConfirmation(HClient, stoi(hm2.substr(1)));
-            logRequest(stoi(hm2.substr(1)), "bonded", 'H');
-            
-            sendConfirmation(OClient, stoi(om.substr(1)));
-            logRequest(stoi(om.substr(1)), "bonded", 'O');
         }
     }
-
-    //join threads
-   /* hydrogenThread.join();
-    oxygenThread.join();
-    checkThread.join();*/
 
     // Close sockets
     closesocket(HClient);

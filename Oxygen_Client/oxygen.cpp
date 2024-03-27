@@ -4,6 +4,7 @@
 #include <winsock2.h>
 #include <chrono>
 #include <string>
+#include <thread>
 
 using namespace std;
 
@@ -16,6 +17,24 @@ void logRequest(int id, const char* action) {
     cout << "O" << id << ", " << action << ", " << ctime(&timestamp) << endl;
 }
 
+void listeningThread(SOCKET clientSocket) {
+    while (true) {
+        int bondedNumber;
+        int bytesReceived = recv(clientSocket, reinterpret_cast<char*>(&bondedNumber), sizeof(bondedNumber), 0);
+        if (bytesReceived <= 0) {
+            cerr << "Failed to receive bonded number: " << WSAGetLastError() << endl;
+            
+            break; // Exiting the thread due to error
+        }
+        else {
+            // Convert from network byte order to host byte order
+            bondedNumber = ntohl(bondedNumber);
+
+            // Process the received bonded number 
+            logRequest(bondedNumber, "bonded");
+        }
+    }
+}
 
 int main() {
     // Initialize Winsock
@@ -36,7 +55,7 @@ int main() {
     // Connect to the server
     sockaddr_in serverAddr;
     serverAddr.sin_family = AF_INET;
-    serverAddr.sin_addr.s_addr = inet_addr("172.20.10.3");  // Server IP address
+    serverAddr.sin_addr.s_addr = inet_addr("10.147.17.27");  // Server IP address
     serverAddr.sin_port = htons(12345);
 
     if (connect(clientSocket, reinterpret_cast<sockaddr*>(&serverAddr), sizeof(serverAddr)) == SOCKET_ERROR) {
@@ -48,11 +67,20 @@ int main() {
 
     cout << "Connected to server." << endl;
 
-    int N;
-    cout << "Enter the number of oxygen bond requests (M): ";
-    cin >> N;
+    int M;
 
-    for (int i = 1; i <= N; ++i) {
+    // Create and start the listening thread
+    std::thread listeningThread([clientSocket]() {
+        listeningThread(clientSocket);
+        });
+
+    // Detach the thread to run independently
+    listeningThread.detach();
+
+    cout << "Enter the number of oxygen bond requests (M): ";
+    cin >> M;
+
+    for (int i = 1; i <= M; ++i) {
         // Sending bond request to the server
         int requestMessage = htonl(i);  // Convert to network byte order
 
@@ -64,14 +92,8 @@ int main() {
         logRequest(i, "request");
     }
 
-    // Receive bond confirmations
-    for (int i = 1; i <= N; ++i) {
-        char buffer[BUFFER_SIZE] = { 0 };
-        if (recv(clientSocket, buffer, BUFFER_SIZE, 0) == SOCKET_ERROR) {
-            cerr << "Failed to receive confirmation: " << WSAGetLastError() << endl;
-            break;  // Exit loop on receive failure
-        }
-        logRequest(i, "bonded");
+    while (true) {
+
     }
 
     closesocket(clientSocket);
