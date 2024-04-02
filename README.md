@@ -29,8 +29,8 @@ g++ hydrogen.cpp -o hydrogen -lws2_32
 2. **Start the Hydrogen and Oxygen Applications**: Run both executable on seperate machines, ensuring they are configured to connect to the master's IP address and port.
 
 3. **Input Parameters**: Once connected, the Hydrogen and Oxygen application will prompt the following:
-   - **Hydrogen Application**: The number of Hydrogen in represented by the variable "N".
-   - **Oxygen Application**: The number of Oxygen in represented by the variable "M".
+   - **Hydrogen Application**: The number of Hydrogen as represented by the variable "N".
+   - **Oxygen Application**: The number of Oxygen as represented by the variable "M".
   
 4. **Expected Output**: The server and applications will interact with each other to create H20 bonds. Log messages will show in all applications to show the status of an atom's request and bond.
 
