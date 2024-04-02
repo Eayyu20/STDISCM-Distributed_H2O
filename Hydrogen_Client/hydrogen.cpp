@@ -11,6 +11,9 @@ using namespace std;
 #pragma comment(lib, "ws2_32.lib")
 constexpr int BUFFER_SIZE = 1024;
 
+const int SENTINEL_VALUE = -99;
+atomic<bool> finished(false);
+
 void logRequest(int id, const char* action) {
     auto now = chrono::system_clock::now();
     time_t timestamp = chrono::system_clock::to_time_t(now);
@@ -23,15 +26,20 @@ void listeningThread(SOCKET clientSocket) {
         int bytesReceived = recv(clientSocket, reinterpret_cast<char*>(&bondedNumber), sizeof(bondedNumber), 0);
         if (bytesReceived <= 0) {
             cerr << "Failed to receive bonded number: " << WSAGetLastError() << endl;
+            finished = true;
             break; // Exiting the thread due to error
         }
-        else {
-            // Convert from network byte order to host byte order
-            bondedNumber = ntohl(bondedNumber);
+        
+        // Convert from network byte order to host byte order
+        bondedNumber = ntohl(bondedNumber);
+        if (bondedNumber == SENTINEL_VALUE) {
+			cout << "Received sentinel value. Ending session." << endl;
+			finished = true;
+			break;
+		}
 
-            // Process the received bonded number 
-            logRequest(bondedNumber, "bonded");
-        }
+        // Process the received bonded number 
+        logRequest(bondedNumber, "bonded");
     }
 }
 
@@ -54,7 +62,7 @@ int main() {
     // Connect to the server
     sockaddr_in serverAddr;
     serverAddr.sin_family = AF_INET;
-    serverAddr.sin_addr.s_addr = inet_addr("192.168.56.1");  // Server IP address
+    serverAddr.sin_addr.s_addr = inet_addr("10.147.17.27");  // Server IP address
     serverAddr.sin_port = htons(12345);
 
     if (connect(clientSocket, reinterpret_cast<sockaddr*>(&serverAddr), sizeof(serverAddr)) == SOCKET_ERROR) {
@@ -91,7 +99,7 @@ int main() {
        logRequest(i, "request");
    }
 
-   while (true) {
+   while (!finished) {
        
    }
 

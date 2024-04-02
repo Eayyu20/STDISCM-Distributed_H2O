@@ -17,6 +17,9 @@ clock_t starttime, endtime;
 string lastH;
 string lastO;
 
+// Define a sentinel value
+const int SENTINEL_VALUE = -99;
+
 void logRequest(int id, const char* action, char client) {
     auto now = chrono::system_clock::now();
     time_t timestamp = chrono::system_clock::to_time_t(now);
@@ -29,7 +32,10 @@ void sendConfirmation(SOCKET clientSocket, int id, char client) {
     if (send(clientSocket, (char*)&bondedNumber, sizeof(bondedNumber), 0) == SOCKET_ERROR) {
         cerr << "Failed to send confirmation: " << clientSocket << WSAGetLastError() << endl;
     }
-    logRequest(id, "bonded", client);
+
+    if (id != SENTINEL_VALUE) {
+        logRequest(id, "bonded", client);
+    }
 }
 
 string receiveHydrogen(SOCKET clientSocket) {
@@ -205,6 +211,10 @@ int main() {
         }
 
     }
+
+    // After the loop, send the sentinel value to both clients
+    sendConfirmation(HClient, SENTINEL_VALUE, 'H');
+    sendConfirmation(OClient, SENTINEL_VALUE, 'O');
 
     // stop timer
     endtime = clock();
