@@ -14,11 +14,15 @@ mutex mtx;
 
 bool timerStarted = false;
 clock_t starttime, endtime;
-string lastH;
-string lastO;
 
-// Define a sentinel value
+// Sentinel value for ending the program
 const int SENTINEL_VALUE = -99;
+
+// SOCKET struct to include client type
+struct ClientSocket {
+    SOCKET socket;
+    char type;  // 'H' for hydrogen, 'O' for oxygen
+};
 
 void logRequest(int id, const char* action, char client) {
     auto now = chrono::system_clock::now();
@@ -54,12 +58,14 @@ string receiveHydrogen(SOCKET clientSocket) {
     // Convert from network byte order to host byte order
     requestNumber = ntohl(requestNumber);
 
+    if (requestNumber == SENTINEL_VALUE) {
+        return to_string(requestNumber);
+    }
+
     logRequest(requestNumber, "request", 'H');
 
     // Receive last Hyrdogen sent and convert the integer to a string for consistent return type
-    lastH = "H" + to_string(requestNumber);
-
-    return lastH;
+    return "H" + to_string(requestNumber);
 }
 
 string receiveOxygen(SOCKET clientSocket) {
@@ -78,12 +84,38 @@ string receiveOxygen(SOCKET clientSocket) {
     // Convert from network byte order to host byte order
     requestNumber = ntohl(requestNumber);
 
+    if (requestNumber == SENTINEL_VALUE) {
+        return to_string(requestNumber);
+    }
+
     logRequest(requestNumber, "request", 'O');
 
     // Receive last Oxygen sent and convert the integer to a string for consistent return type
-    lastO = "O" + to_string(requestNumber);
+    return "O" + to_string(requestNumber);
+}
 
-    return lastO;
+// Function to accept and identify client type
+ClientSocket acceptAndIdentifyClient(SOCKET serverSocket) {
+    ClientSocket client;
+    client.socket = accept(serverSocket, nullptr, nullptr);
+    if (client.socket == INVALID_SOCKET) {
+        cerr << "Accept failed." << endl;
+        return client;
+    }
+
+    // Read the first byte to identify the client type
+    char clientType;
+    int bytesReceived = recv(client.socket, &clientType, 1, 0);
+    if (bytesReceived > 0 && (clientType == 'H' || clientType == 'O')) {
+        client.type = clientType;
+    }
+    else {
+        cerr << "Failed to identify client type." << endl;
+        closesocket(client.socket);
+        client.socket = INVALID_SOCKET;
+    }
+
+    return client;
 }
 
 int main() {
@@ -126,26 +158,16 @@ int main() {
     std::cout << "Waiting for connections..." << std::endl;
 
     // Define SOCKET variables outside the threads
-    SOCKET HClient = INVALID_SOCKET;
-    SOCKET OClient = INVALID_SOCKET;
+    ClientSocket HClient = { INVALID_SOCKET, 0 };
+    ClientSocket OClient = { INVALID_SOCKET, 0 };
 
     // Accept two client connections
     thread connectH([&]() {
-        HClient = accept(serverSocket, nullptr, nullptr);
-        if (HClient == INVALID_SOCKET) {
-            cerr << "Accept failed." << endl;
-            closesocket(serverSocket);
-            WSACleanup();
-        }
+        HClient = acceptAndIdentifyClient(serverSocket);
     });
 
     thread connectO([&]() {
-        OClient = accept(serverSocket, nullptr, nullptr);
-        if (OClient == INVALID_SOCKET) {
-            cerr << "Accept failed." << endl;
-            closesocket(serverSocket);
-            WSACleanup();
-        }
+        OClient = acceptAndIdentifyClient(serverSocket);
     });
      
     connectH.join();
@@ -160,7 +182,7 @@ int main() {
     
     thread hydrogenThread([&]() {
         while (true) {
-            string rh = receiveHydrogen(HClient);
+            string rh = receiveHydrogen(HClient.socket);
             if (!rh.empty()) {
                 lock_guard<mutex> lock(mtx);
                 Hq.emplace_back(rh);
@@ -171,7 +193,7 @@ int main() {
 
     thread oxygenThread([&]() {
         while (true) {
-            string ro = receiveOxygen(OClient);
+            string ro = receiveOxygen(OClient.socket);
             if (!ro.empty()) {
                 lock_guard<mutex> lock(mtx);
                 Oq.emplace_back(ro);
@@ -198,23 +220,23 @@ int main() {
                 Hq.erase(Hq.begin(), Hq.begin() + 2);
                 Oq.erase(Oq.begin());
 
-                sendConfirmation(HClient, stoi(hm1.substr(1)), 'H');
+                sendConfirmation(HClient.socket, stoi(hm1.substr(1)), 'H');
 
-                sendConfirmation(HClient, stoi(hm2.substr(1)), 'H');
+                sendConfirmation(HClient.socket, stoi(hm2.substr(1)), 'H');
 
-                sendConfirmation(OClient, stoi(om.substr(1)), 'O');
+                sendConfirmation(OClient.socket, stoi(om.substr(1)), 'O');
             }
         }
 
-        if (hm2 == lastH || om == lastO) {
+        if (Hq[0] == "-99" && Oq[0] == "-99") {
             break;
         }
 
     }
 
     // After the loop, send the sentinel value to both clients
-    sendConfirmation(HClient, SENTINEL_VALUE, 'H');
-    sendConfirmation(OClient, SENTINEL_VALUE, 'O');
+    sendConfirmation(HClient.socket, SENTINEL_VALUE, 'H');
+    sendConfirmation(OClient.socket, SENTINEL_VALUE, 'O');
 
     // stop timer
     endtime = clock();
@@ -227,8 +249,8 @@ int main() {
 
 
     // Close sockets
-    closesocket(HClient);
-    closesocket(OClient);
+    closesocket(HClient.socket);
+    closesocket(OClient.socket);
     closesocket(serverSocket);
 
     // Cleanup Winsock

@@ -74,6 +74,10 @@ int main() {
 
     cout << "Connected to server." << endl;
 
+    // Send client identification to server
+    char clientType = 'H';
+    send(clientSocket, &clientType, sizeof(clientType), 0);
+
     int N;
 
     // Create and start the listening thread
@@ -97,6 +101,12 @@ int main() {
        }
 
        logRequest(i, "request");
+   }
+
+   int sentinel = htonl(SENTINEL_VALUE);
+
+   if (send(clientSocket, (char*)&sentinel, sizeof(sentinel), 0) == SOCKET_ERROR) {
+       cerr << "Failed to send request: " << WSAGetLastError() << endl;
    }
 
    while (!finished) {
