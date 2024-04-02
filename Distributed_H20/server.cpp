@@ -12,6 +12,11 @@ mutex mtx;
 #define LIMIT 100000000
 #pragma comment(lib, "ws2_32.lib")
 
+bool timerStarted = false;
+clock_t starttime, endtime;
+string lastH;
+string lastO;
+
 void logRequest(int id, const char* action, char client) {
     auto now = chrono::system_clock::now();
     time_t timestamp = chrono::system_clock::to_time_t(now);
@@ -34,13 +39,21 @@ string receiveHydrogen(SOCKET clientSocket) {
         return "";
     }
 
+    // Start timer upon first request
+    if (!timerStarted) {
+        starttime = clock();
+        timerStarted = true;
+    }
+
     // Convert from network byte order to host byte order
     requestNumber = ntohl(requestNumber);
 
     logRequest(requestNumber, "request", 'H');
 
-    // Convert the integer to a string for consistent return type
-    return "H" + to_string(requestNumber);
+    // Receive last Hyrdogen sent and convert the integer to a string for consistent return type
+    lastH = "H" + to_string(requestNumber);
+
+    return lastH;
 }
 
 string receiveOxygen(SOCKET clientSocket) {
@@ -50,13 +63,21 @@ string receiveOxygen(SOCKET clientSocket) {
         return "";
     }
 
+    // Start timer upon first request
+    if (!timerStarted) {
+        starttime = clock();
+        timerStarted = true;
+    }
+
     // Convert from network byte order to host byte order
     requestNumber = ntohl(requestNumber);
 
     logRequest(requestNumber, "request", 'O');
 
-    // Convert the integer to a string for consistent return type
-    return "O" + to_string(requestNumber);
+    // Receive last Oxygen sent and convert the integer to a string for consistent return type
+    lastO = "O" + to_string(requestNumber);
+
+    return lastO;
 }
 
 int main() {
@@ -155,13 +176,13 @@ int main() {
 
     //Bonding
     while (true) {
+        string hm1 = "-1", hm2 = "-1", om = "-1";
         bool molecules_available = false;
         {
             lock_guard<mutex> lock(mtx);
             molecules_available = (Hq.size() >= 2 && !Oq.empty());
         }
         if (molecules_available) {
-            string hm1, hm2, om;
             {
                 lock_guard<mutex> lock(mtx);
                 hm1 = Hq[0];
@@ -178,7 +199,22 @@ int main() {
                 sendConfirmation(OClient, stoi(om.substr(1)), 'O');
             }
         }
+
+        if (hm2 == lastH || om == lastO) {
+            break;
+        }
+
     }
+
+    // stop timer
+    endtime = clock();
+
+    //Calculate Time Taken
+    double time_taken = double(endtime - starttime) / double(CLOCKS_PER_SEC);
+    cout << "Time taken by program is : " << fixed
+        << time_taken << setprecision(5);
+    cout << " sec " << endl;
+
 
     // Close sockets
     closesocket(HClient);
