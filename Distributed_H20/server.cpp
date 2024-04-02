@@ -203,7 +203,10 @@ int main() {
     oxygenThread.detach();
 
     //Bonding
-    while (true) {
+
+    boolean finished = false;
+
+    while (!finished) {
         string hm1 = "-1", hm2 = "-1", om = "-1";
         bool molecules_available = false;
         {
@@ -228,10 +231,11 @@ int main() {
             }
         }
 
-        if (Hq[0] == "-99" && Oq[0] == "-99") {
-            break;
+        if (!Hq.empty() && !Oq.empty()) {
+            if (Hq[0] == "-99" && Oq[0] == "-99") {
+                finished = true;
+            }
         }
-
     }
 
     // After the loop, send the sentinel value to both clients
