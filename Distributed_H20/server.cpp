@@ -17,6 +17,8 @@ clock_t starttime, endtime;
 
 // Sentinel value for ending the program
 const int SENTINEL_VALUE = -99;
+// Sentinel Value for clients finished recieving confirmation
+const int FINISHED_VALUE = -100;
 
 // SOCKET struct to include client type
 struct ClientSocket {
@@ -61,6 +63,9 @@ string receiveHydrogen(SOCKET clientSocket) {
     if (requestNumber == SENTINEL_VALUE) {
         return to_string(requestNumber);
     }
+    else if (requestNumber == FINISHED_VALUE) {
+		return "done";
+	}
 
     logRequest(requestNumber, "request", 'H');
 
@@ -86,6 +91,9 @@ string receiveOxygen(SOCKET clientSocket) {
 
     if (requestNumber == SENTINEL_VALUE) {
         return to_string(requestNumber);
+    }
+    else if (requestNumber == FINISHED_VALUE) {
+        return "done";
     }
 
     logRequest(requestNumber, "request", 'O');
@@ -241,6 +249,15 @@ int main() {
     // After the loop, send the sentinel value to both clients
     sendConfirmation(HClient.socket, SENTINEL_VALUE, 'H');
     sendConfirmation(OClient.socket, SENTINEL_VALUE, 'O');
+
+    // Wait for both clients to send their final "done" message
+    string finalHMessage = receiveHydrogen(HClient.socket);
+    string finalOMessage = receiveOxygen(OClient.socket);
+
+    // Check if both clients sent the "done" message
+    if (finalHMessage == "done" && finalOMessage == "done") {
+        cout << "Both clients have finished processing." << endl;
+    }
 
     // stop timer
     endtime = clock();

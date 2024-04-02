@@ -113,6 +113,13 @@ int main() {
 
     }
 
+    if (finished) {
+        int finished = htonl(-100);
+        if (send(clientSocket, (char*)&finished, sizeof(finished), 0) == SOCKET_ERROR) {
+            cerr << "Failed to send request: " << WSAGetLastError() << endl;
+        }
+    }
+
     closesocket(clientSocket);
     WSACleanup();
 
